@@ -15,9 +15,11 @@ Repositorio con **dos robots** independientes para competencia tipo rescate / se
 
 ## Placa ESP32-DO
 
-Controlador con **driver de motores integrado**. Pines de motor oficiales: M1 = GPIO 2/4, M2 = GPIO 13/27. Encoders: 16/25 y 17/26.
+Controlador con **driver de motores integrado**. Pines de motor: M1 = GPIO 2/4, M2 = GPIO 13/27. Encoders: 16/25 y 17/26. I2C: SDA=21, SCL=22.
 
 ![Placa ESP32-DO](docs/images/esp32-do-placa.jpg)
+
+*Foto / diagrama de la placa ESP-DO (conectores M1/M2, GPIO, ADC, IIC y SPI).*
 
 ---
 
