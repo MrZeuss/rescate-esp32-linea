@@ -17,6 +17,7 @@ static bool _prev = false;
 
 bool obstInit() {
 #if OBST_USAR_VL53
+  // Comparte el bus I2C con los AS7341 (SDA=21, SCL=22)
   Wire.begin(PIN_VL53_SDA, PIN_VL53_SCL);
   Wire.setClock(400000);
   delay(20);

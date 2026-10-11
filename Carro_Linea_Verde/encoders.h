@@ -1,8 +1,8 @@
 #pragma once
 // ============================================================
 // encoders.h — Cuadratura oficial ESP32-DO + N20
-//   Encoder 1 (M1 / izq): A=16  B=25
-//   Encoder 2 (M2 / der): A=17  B=26
+//   Encoder 0 → Motor M1: A=16  B=25  (+ VCC/GND del encoder)
+//   Encoder 1 → Motor M2: A=17  B=26  (+ VCC/GND del encoder)
 // Lógica de ISR basada en el ejemplo del fabricante.
 // ============================================================
 #include <Arduino.h>

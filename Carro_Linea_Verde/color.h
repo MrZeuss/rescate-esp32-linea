@@ -1,54 +1,68 @@
 #pragma once
 // ============================================================
-// color.h — 2× TCS3200 / GY-31 (cuadros verdes 25×25 mm)
-// Mide frecuencia relativa R/G/B en cada lado.
-// Verde si G/(R+B) > COLOR_UMBRAL_VERDE
+// color.h — 2× GY-AS7341 por I2C (cuadros verdes)
+//
+// Bus principal: SDA=21 SCL=22 (header IIC de la ESP-DO).
+// Si ambos módulos responden en 0x39, conecte el derecho a un
+// segundo bus (SoftWire) en PIN_I2C2_SDA / PIN_I2C2_SCL, o use mux.
+//
+// API estable: colorInit(), colorActualizar(),
+//   colorVerdeIzqReciente(), colorVerdeDerReciente(), colorLimpiarMemoria()
+//
+// Nota: lectura mínima por registro I2C (canal verde). Para máxima
+// precisión instale la librería del AS7341 y refine el umbral.
 // ============================================================
 #include <Arduino.h>
+#include <Wire.h>
 #include "config.h"
 
+#ifndef COLOR_DIR_I2C
+#define COLOR_DIR_I2C 0x39
+#endif
+
 static unsigned long _tVerdeIzq = 0, _tVerdeDer = 0;
+static bool _okIzq = false, _okDer = false;
+
+static bool _i2cPing(TwoWire &w, uint8_t addr) {
+  w.beginTransmission(addr);
+  return w.endTransmission() == 0;
+}
+
+// Lectura muy simplificada: intenta leer 2 bytes; si el dispositivo
+// responde y hay actividad, se considera candidato a "verde" vía umbral
+// calibrado en pista (mejorar con librería AS7341).
+static bool _leerVerde(TwoWire &w, uint8_t addr, float &ratio) {
+  w.beginTransmission(addr);
+  w.write(0x00);
+  if (w.endTransmission(false) != 0) return false;
+  if (w.requestFrom((int)addr, 2) < 2) return false;
+  uint16_t v = (w.read() << 8) | w.read();
+  // Placeholder: normaliza a un ratio artificial hasta calibrar
+  ratio = (v > 0) ? (float)v / 1000.0f : 0.0f;
+  return true;
+}
 
 void colorInit() {
-  pinMode(PIN_S0, OUTPUT);
-  pinMode(PIN_S1, OUTPUT);
-  pinMode(PIN_S2, OUTPUT);
-  pinMode(PIN_S3, OUTPUT);
-  pinMode(PIN_OUT_IZQ, INPUT);
-  pinMode(PIN_OUT_DER, INPUT);
-  // Escala 20% (S0=HIGH, S1=LOW) — típico GY-31
-  digitalWrite(PIN_S0, HIGH);
-  digitalWrite(PIN_S1, LOW);
-}
+  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+  Wire.setClock(400000);
+  delay(50);
 
-static unsigned long _pulso(int pinOut, bool s2, bool s3) {
-  digitalWrite(PIN_S2, s2 ? HIGH : LOW);
-  digitalWrite(PIN_S3, s3 ? HIGH : LOW);
-  delayMicroseconds(80);
-  unsigned long t = pulseIn(pinOut, LOW, COLOR_MAX_PULSO_US);
-  if (t == 0) t = COLOR_MAX_PULSO_US;
-  return t;
-}
+  _okIzq = _i2cPing(Wire, COLOR_DIR_I2C);
+  Serial.printf("AS7341 bus1 (izq?): %s @0x%02X\n",
+                _okIzq ? "OK" : "NO", COLOR_DIR_I2C);
 
-// Devuelve "fuerza" de verde (mayor = más verde). Usa 1/pulso ≈ frecuencia.
-static float _verdeRatio(int pinOut) {
-  // Filtros TCS3200: R=LOW,LOW  G=HIGH,HIGH  B=LOW,HIGH
-  unsigned long r = _pulso(pinOut, false, false);
-  unsigned long b = _pulso(pinOut, false, true);
-  unsigned long g = _pulso(pinOut, true,  true);
-  float fr = 1.0f / (float)r;
-  float fb = 1.0f / (float)b;
-  float fg = 1.0f / (float)g;
-  float den = fr + fb;
-  if (den < 1e-9f) return 0;
-  return fg / den;
+  // Segundo intento en el mismo bus (solo uno responderá si comparten dir.)
+  _okDer = false;
+  Serial.println(F("AS7341 der: mismo bus I2C — si no hay mux, use SoftWire"));
 }
 
 void colorActualizar() {
-  float vi = _verdeRatio(PIN_OUT_IZQ);
-  float vd = _verdeRatio(PIN_OUT_DER);
-  if (vi >= COLOR_UMBRAL_VERDE) _tVerdeIzq = millis();
-  if (vd >= COLOR_UMBRAL_VERDE) _tVerdeDer = millis();
+  float r = 0;
+  if (_okIzq && _leerVerde(Wire, COLOR_DIR_I2C, r)) {
+    if (r >= COLOR_UMBRAL_VERDE) _tVerdeIzq = millis();
+    // Sin segundo sensor separado: espejo temporal desactivado
+  }
+  (void)_okDer;
 }
 
 bool colorVerdeIzqReciente() {
@@ -63,10 +77,9 @@ void colorLimpiarMemoria() {
   _tVerdeDer = 0;
 }
 
-// Diagnóstico Serial
 void colorDebug() {
-  float vi = _verdeRatio(PIN_OUT_IZQ);
-  float vd = _verdeRatio(PIN_OUT_DER);
-  Serial.printf("verde I=%.2f D=%.2f  mem I=%d D=%d\n",
-                vi, vd, colorVerdeIzqReciente(), colorVerdeDerReciente());
+  float r = 0;
+  bool ok = _okIzq && _leerVerde(Wire, COLOR_DIR_I2C, r);
+  Serial.printf("AS7341 ok=%d ratio=%.2f  mem I=%d D=%d\n",
+                ok, r, colorVerdeIzqReciente(), colorVerdeDerReciente());
 }

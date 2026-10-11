@@ -81,11 +81,19 @@ Detalle de pines: [`Carro_Linea_Verde/README.md`](Carro_Linea_Verde/README.md) y
 
 ## Conexiones
 
-Esquema de cableado de referencia sobre ESP32-DO (motores, encoders, línea, colores y obstáculo).
+Diagrama corregido para `Carro_Linea_Verde` sobre **ESP32-DO**:
+
+| Bloque | Conexión |
+|--------|----------|
+| M1 + **Encoder 0** | Motores 2/4 · Enc A/B = **16 / 25** (+ VCC/GND) |
+| M2 + **Encoder 1** | Motores 13/27 · Enc A/B = **17 / 26** (+ VCC/GND) |
+| Línea 5 IR | GPIO **39, 32, 33, 34, 35** (33 = centro) |
+| Bus I2C (3 tomas IIC) | SDA **21**, SCL **22** → AS7341 izq, AS7341 der, VL53L0X |
+| START | GPIO **19** |
 
 ![Esquema de conexiones](docs/images/conexiones-esp32-do.jpg)
 
-> Confirme siempre los pines en `config.h`. El sensor de línea y los AS7341 usan **I2C** (puede requerir mux o segundo bus si hay conflicto de direcciones).
+> Detalle: [`Carro_Linea_Verde/README.md`](Carro_Linea_Verde/README.md). Si los dos AS7341 tienen la misma dirección I2C (0x39), use un mux o un segundo bus.
 
 ---
 

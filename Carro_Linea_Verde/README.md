@@ -1,7 +1,6 @@
 # Carro_Linea_Verde — Segundo robot (ESP32-DO)
 
-Proyecto **separado** de `Rescate_ESP32`.  
-Pinout de motores y encoders según **ejemplos oficiales ESP32-DO**.
+Proyecto **separado** de `Rescate_ESP32`.
 
 ---
 
@@ -10,75 +9,80 @@ Pinout de motores y encoders según **ejemplos oficiales ESP32-DO**.
 | Cant. | Componente | Uso |
 |------:|------------|-----|
 | 1 | **ESP32-DO** | MCU + driver de motores |
-| 2 | Motor **N20 con encoder** (cuadratura A/B) | Tracción |
-| 1 | Barra 5 IR (HW-871) | Línea negra 19 mm |
-| 2 | Sensor color GY-31 / TCS3200 | Cuadros verdes 25×25 mm |
-| 1 | VL53L0X *(o HC-SR04)* | Obstáculo 10 cm |
+| 2 | Motor **N20 + encoder** XY-N20 | Tracción + odometría |
+| 2 | Rueda + soporte N20 | — |
+| 1 | Sensor de línea **5 IR** | Seguidor (GPIO 39…35) |
+| 2 | **GY-AS7341** (color, I2C) | Cuadros verdes izq / der |
+| 1 | **VL53L0X** (I2C) | Obstáculo ~10 cm |
+| 1 | Módulo UPS 18650 (5 V) | Alimentación |
 | 1 | Pulsador START | Arranque / parada |
-| 1 | Batería + regulación | — |
 
 ---
 
-## 2. Conexiones oficiales ESP32-DO
+## 2. Conexiones (corregidas)
 
-### Motores (driver integrado)
+![Conexiones Carro_Linea_Verde](../docs/images/conexiones-esp32-do.jpg)
 
-| Motor | Pin A | Pin B |
-|-------|------:|------:|
-| M1 (izquierdo) | **2** | **4** |
-| M2 (derecho) | **13** | **27** |
+### Motores (driver integrado ESP32-DO)
 
-Sentido (ejemplo fabricante):
+| Motor | Conector placa | GPIO control |
+|-------|----------------|--------------|
+| **M1** (izquierdo) | M1 | **2** y **4** |
+| **M2** (derecho) | M2 | **13** y **27** |
 
-- **Adelante:** `analogWrite(pinA, 0)` + `analogWrite(pinB, velocidad)`
-- **Atrás:** `analogWrite(pinA, velocidad)` + `analogWrite(pinB, 0)`
-- **Libre:** ambos a 0
+Adelante = PWM en pin B; atrás = PWM en pin A (ejemplo fabricante).
 
-En el firmware, velocidad **positiva** = adelante.
+### Encoders (además de alimentación del encoder)
 
-### Encoders N20 (cuadratura)
+Cada N20 lleva cable de encoder: **VCC, GND, A, B**.
 
-| Encoder | Canal A | Canal B |
-|---------|--------:|--------:|
-| Enc 1 → M1 | **16** | **25** |
-| Enc 2 → M2 | **17** | **26** |
+| Motor | Encoder | Canal A | Canal B |
+|-------|---------|--------:|--------:|
+| M1 | **Encoder 0** | **16** | **25** |
+| M2 | **Encoder 1** | **17** | **26** |
 
-ISR en ambos flancos (CHANGE), igual que el ejemplo oficial.
+### Sensor de línea 5 IR
 
-### Línea HW-871
+Cinco señales a los ADC/GPIO de la fila inferior de la ESP-DO, en el **orden físico de la placa**:
 
-| OUT1…OUT5 (izq→der) | 39, 32, 33, 34, 35 |
-| VCC / GND | 3.3 V / GND |
+| Canal (izq → der) | GPIO | Nota |
+|-------------------|-----:|------|
+| 0 (extremo izq) | **39** | |
+| 1 | **32** | |
+| 2 (centro) | **33** | sensor central |
+| 3 | **34** | |
+| 4 (extremo der) | **35** | |
+| VCC / GND | 3.3 V / GND | |
 
-### Color GY-31 × 2 *(pines libres; 25 y 26 son encoders)*
+### Bus I2C (header IIC de la ESP-DO)
 
-| Señal | GPIO |
-|-------|-----:|
-| S0 | 5 |
-| S1 | 12 |
-| S2 | 14 |
-| S3 | 18 |
-| OUT izquierdo | 15 |
-| OUT derecho | 23 |
+La placa permite **3 conexiones simultáneas** al mismo bus (**SDA = 21**, **SCL = 22**):
 
-### Obstáculo VL53L0X
+| Puerto IIC | Dispositivo | Dirección típica |
+|------------|-------------|------------------|
+| 1 | GY-AS7341 **izquierdo** | 0x39 |
+| 2 | GY-AS7341 **derecho** | 0x39* |
+| 3 | VL53L0X frontal | 0x29 |
 
-| SDA | SCL | XSHUT | VIN |
-|----:|----:|-------|-----|
-| 21 | 22 | 3.3 V | 3.3 V |
+\*Si ambos AS7341 comparten la misma dirección, hace falta un **mux I2C** (p. ej. TCA9548A) o un segundo bus por software. XSHUT del VL53 puede ir a 3.3 V si solo hay un láser.
 
 ### Pulsador
 
-| START | GPIO **19** → GND |
+| START | GPIO **19** → GND (INPUT_PULLUP) |
+
+### Alimentación
+
+- GND común entre batería, ESP-DO, motores (vía driver) y sensores.  
+- Lógica de sensores: **3.3 V**.  
+- Motores: según UPS (5 V típico en ESP-DO).
 
 ---
 
 ## 3. Calibración de encoders
 
 1. Suba el firmware.  
-2. En Serial (115200), tecla **`e`**: imprime conteos M1 y M2.  
-3. Haga girar el carro 90° a mano o con un comando de prueba.  
-4. Anote el valor medio y póngalo en `PULSOS_90` / `PULSOS_180` en `config.h`.
+2. Serial (115200), tecla **`e`**: conteos Encoder 0 / Encoder 1.  
+3. Gire 90° y ajuste `PULSOS_90` / `PULSOS_180` en `config.h`.
 
 ---
 
@@ -100,12 +104,8 @@ ISR en ambos flancos (CHANGE), igual que el ejemplo oficial.
 ```
 Carro_Linea_Verde/
   Carro_Linea_Verde.ino
-  config.h
-  motores.h      ← pinout y sentido oficiales
-  encoders.h     ← cuadratura 16/25 y 17/26
-  linea.h  color.h  obstaculo.h
+  config.h  motores.h  encoders.h
+  linea.h   color.h    obstaculo.h
   control_pid.h  evasion.h  maquina_estados.h
   README.md
 ```
-
-Serial útil: **`d`** = debug color, **`e`** = lecturas encoder.
